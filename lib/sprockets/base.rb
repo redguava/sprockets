@@ -52,7 +52,18 @@ module Sprockets
         # negligently reset thus appearing as if the file hasn't changed on
         # disk. Also, the mtime is only read to the nearest second. It's
         # also possible the file was updated more than once in a given second.
-        key = UnloadedAsset.new(path, self).file_digest_key(stat.mtime.to_i)
+        mtime = stat.mtime.to_i
+        # https://github.com/npm/npm/issues/20439 (NPM >= 6 sets all mtime to 26-10-1985)
+        if mtime < 499219200 # Time.parse('27-10-1985 12:00AM UTC').to_i
+          self.path_parents(path).each do |new_path|
+            break if new_path.split(root).count <= 1
+            if new_stat = self.stat(new_path)
+              mtime = new_stat.mtime.to_i
+              break if mtime > 499219200
+            end
+          end
+        end
+        key = UnloadedAsset.new(path, self).file_digest_key(mtime)
         cache.fetch(key) do
           self.stat_digest(path, stat)
         end
